@@ -74,13 +74,14 @@ async function verwerkTeamaanvragen() {
     const url = `https://lichess.org/api/team/${teamId}/requests`;
 
     try {
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/x-ndjson' // Lichess stuurt data regel voor regel
-            }
-        });
+     const response = await fetch(url, {
+    method: 'GET',
+    mode: 'cors', // <--- Dit vertelt de browser hoe hij met Lichess moet praten
+    headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/x-ndjson'
+    }
+});
 
         if (!response.ok) {
             schrijfNaarLog(`❌ Fout bij ophalen: ${response.status} (${response.statusText})`);
