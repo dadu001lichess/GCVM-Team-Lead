@@ -5,8 +5,8 @@ from datetime import datetime
 from google.oauth2.service_account import Credentials
 
 # GEGEVENS VOOR DE SPREADSHEET
-SPREADSHEET_NAME = "NAAM_VAN_JOUW_GOOGLE_SHEET"  # <-- VERVANG DIT door de exacte naam van je Google Sheet!
-TABBLAD_NAME = "Blad1"  # <-- Pas dit aan als je tabblad anders heet (bijv. Sheet1)
+SPREADSHEET_NAME = "https://docs.google.com/spreadsheets/d/1S0ZpBX9067r0rsjjwWpcwIAYYw0X9Dgix8YObPAaGLI/edit?gid=2015825906#gid=2015825906"  # <-- VERVANG DIT door de exacte naam van je Google Sheet!
+TABBLAD_NAME = "Growing Chess Shards Ledger"  # <-- Pas dit aan als je tabblad anders heet (bijv. Sheet1)
 
 GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS")
 
