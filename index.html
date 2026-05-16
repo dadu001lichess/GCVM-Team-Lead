@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <title>Lichess Systeem Account</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            padding: 50px;
+        }
+        .dashboard {
+            max-width: 500px;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin: 0 auto;
+        }
+        h1 { color: #1a1a1a; font-size: 24px; margin-bottom: 20px; }
+        label { font-weight: bold; display: block; margin-top: 15px; color: #555; }
+        input { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; }
+        button { 
+            background-color: #007bff; color: white; border: none; width: 100%;
+            padding: 12px; margin-top: 20px; cursor: pointer; border-radius: 5px; font-size: 16px;
+        }
+        button:hover { background-color: #0056b3; }
+        #logboek { 
+            margin-top: 25px; padding: 15px; background: #1e1e1e; color: #00ff00; 
+            font-family: 'Courier New', monospace; border-radius: 5px; max-height: 200px; overflow-y: auto; font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <h1>Lichess Team Toelatingssysteem</h1>
+    <p>Dit systeem controleert op nieuwe aanvragen en laat leden automatisch toe.</p>
+    
+    <label for="tokenInvoer">1. Lichess Beheerders Token:</label>
+    <input type="password" id="tokenInvoer" placeholder="Plak hier je lip_... token">
+
+    <label for="teamIdInvoer">2. Team ID (uit de Lichess URL):</label>
+    <input type="text" id="teamIdInvoer" placeholder="bijv. mijn-schaakclub">
+
+    <button onclick="verwerkTeamaanvragen()">Controleer Aanvragen</button>
+
+    <h3>Status & Logboek:</h3>
+    <div id="logboek">Wachten op actie...</div>
+</div>
+
+<script>
+// Functie om tekst naar het zwarte schermpje (logboek) te schrijven
+function schrijfNaarLog(bericht) {
+    const logDiv = document.getElementById('logboek');
+    logDiv.innerHTML += "<br>" + bericht;
+    logDiv.scrollTop = logDiv.scrollHeight; 
+}
+
+async function verwerkTeamaanvragen() {
+    const token = document.getElementById('tokenInvoer').value;
+    const teamId = document.getElementById('teamIdInvoer').value;
+    const logDiv = document.getElementById('logboek');
+
+    // Controleer of de gebruiker alles heeft ingevuld
+    if (!token || !teamId) {
+        alert("Vul eerst je token en Team ID in!");
+        return;
+    }
+
+    logDiv.innerHTML = "<b>--- Systeem Actief ---</b>";
+    schrijfNaarLog("Verbinding maken met Lichess API...");
+
+    const url = `https://lichess.org/api/team/${teamId}/requests`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/x-ndjson' // Lichess stuurt data regel voor regel
+            }
+        });
+
+        if (!response.ok) {
+            schrijfNaarLog(`❌ Fout bij ophalen: ${response.status} (${response.statusText})`);
+            return;
+        }
+
+        const data = await response.text();
+        const regels = data.trim().split('\n');
+
+        if (regels.length === 1 && regels[0] === "") {
+            schrijfNaarLog("Geen openstaande aanvragen gevonden op dit moment.");
+            return;
+        }
+
+        for (const regel of regels) {
+            if (!regel.trim()) continue;
+            
+            const aanvraag = JSON.parse(regel);
+            const userId = aanvraag.user?.id;
+            const username = aanvraag.user?.name;
+
+            if (userId) {
+                schrijfNaarLog(`Aanvraag ontdekt van: <b>${username}</b>. Toelaten...`);
+
+                const acceptUrl = `https://lichess.org/api/team/${teamId}/request/${userId}/accept`;
+                const acceptResponse = await fetch(acceptUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (acceptResponse.ok) {
+                    schrijfNaarLog(`🥳 Succes! <b>${username}</b> is succesvol toegelaten tot het team.`);
+                } else {
+                    schrijfNaarLog(`❌ Kon ${username} niet toevoegen. Code: ${acceptResponse.status}`);
+                }
+            }
+        }
+    } catch (fout) {
+        schrijfNaarLog(`❌ Netwerkfout: ${fout.message}`);
+    }
+}
+</script>
+
+</body>
+</html>
