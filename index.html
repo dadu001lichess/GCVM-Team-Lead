@@ -2,7 +2,8 @@
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
-    <title>Lichess Systeem Account</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lichess Team Toelatingssysteem</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -41,7 +42,7 @@
     <input type="password" id="tokenInvoer" placeholder="Plak hier je lip_... token">
 
     <label for="teamIdInvoer">2. Team ID (uit de Lichess URL):</label>
-    <input type="text" id="teamIdInvoer" placeholder="bijv. mijn-schaakclub">
+    <input type="text" id="teamIdInvoer" placeholder="bijv. growing-chess-variants-masters">
 
     <button onclick="verwerkTeamaanvragen()">Controleer Aanvragen</button>
 
@@ -50,7 +51,6 @@
 </div>
 
 <script>
-// Functie om tekst naar het zwarte schermpje (logboek) te schrijven
 function schrijfNaarLog(bericht) {
     const logDiv = document.getElementById('logboek');
     logDiv.innerHTML += "<br>" + bericht;
@@ -58,33 +58,35 @@ function schrijfNaarLog(bericht) {
 }
 
 async function verwerkTeamaanvragen() {
-    const token = document.getElementById('tokenInvoer').value;
-    const teamId = document.getElementById('teamIdInvoer').value;
+    const token = document.getElementById('tokenInvoer').value.trim();
+    const teamId = document.getElementById('teamIdInvoer').value.trim();
     const logDiv = document.getElementById('logboek');
 
-    // Controleer of de gebruiker alles heeft ingevuld
     if (!token || !teamId) {
         alert("Vul eerst je token en Team ID in!");
         return;
     }
 
     logDiv.innerHTML = "<b>--- Systeem Actief ---</b>";
-    schrijfNaarLog("Verbinding maken met Lichess API...");
+    schrijfNaarLog("Verbinding maken met Lichess API via HTTPS...");
 
     const url = `https://lichess.org/api/team/${teamId}/requests`;
 
     try {
-     const response = await fetch(url, {
-    method: 'GET',
-    mode: 'cors', // <--- Dit vertelt de browser hoe hij met Lichess moet praten
-    headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/x-ndjson'
-    }
-});
+        const response = await fetch(url, {
+            method: 'GET',
+            mode: 'cors', // Vraagt toestemming aan de browser
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/x-ndjson'
+            }
+        });
 
         if (!response.ok) {
             schrijfNaarLog(`❌ Fout bij ophalen: ${response.status} (${response.statusText})`);
+            if(response.status === 403) {
+                schrijfNaarLog("<i>Tip: Als dit een 403 blijft, blokkeert Lichess HTML-apps voor dit endpoint.</i>");
+            }
             return;
         }
 
@@ -109,20 +111,21 @@ async function verwerkTeamaanvragen() {
                 const acceptUrl = `https://lichess.org/api/team/${teamId}/request/${userId}/accept`;
                 const acceptResponse = await fetch(acceptUrl, {
                     method: 'POST',
+                    mode: 'cors',
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
                 });
 
                 if (acceptResponse.ok) {
-                    schrijfNaarLog(`🥳 Succes! <b>${username}</b> is succesvol toegelaten tot het team.`);
+                    schrijfNaarLog(`🥳 Succes! <b>${username}</b> is succesvol toegelaten.`);
                 } else {
                     schrijfNaarLog(`❌ Kon ${username} niet toevoegen. Code: ${acceptResponse.status}`);
                 }
             }
         }
     } catch (fout) {
-        schrijfNaarLog(`❌ Netwerkfout: ${fout.message}`);
+        schrijfNaarLog(`❌ Netwerk- of CORS-fout: ${fout.message}`);
     }
 }
 </script>
