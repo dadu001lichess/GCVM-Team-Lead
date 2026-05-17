@@ -8,11 +8,22 @@ LICHESS_TOKEN = os.getenv("LICHESS_TOKEN")
 
 def get_usernames_from_html(html_text):
     """
-    Scant de HTML op zoek naar de directe acceptatie-links:
-    /team/id/request/username/accept
+    Scant de HTML van de hoofdpagina op zoek naar join-verzoeken.
+    Lichess gebruikt daar vaak links zoals: /team/id/request/username/accept
+    of vermeldt de gebruikersnaam in de handmatige review sectie.
     """
-    pattern = rf"/team/{TEAM_ID}/request/([\w-]+)/accept"
-    return re.findall(pattern, html_text)
+    # We zoeken naar patronen waarin een gebruikersnaam gekoppeld is aan het team-verzoek
+    pattern = rf"/team/{TEAM_ID}/request/([\w-]+)"
+    found = re.findall(pattern, html_text)
+    
+    # Filter eventuele woorden zoals 'accept' of 'reject' eruit als die zijn meegeleverd
+    cleaned_usernames = []
+    for name in found:
+        clean_name = name.replace("/accept", "").replace("/id", "").strip()
+        if clean_name and clean_name not in ["accept", "reject", "dismiss"]:
+            cleaned_usernames.append(clean_name)
+            
+    return list(set(cleaned_usernames))
 
 def check_and_accept_requests():
     if not LICHESS_TOKEN:
@@ -21,26 +32,25 @@ def check_and_accept_requests():
 
     headers = {
         "Authorization": f"Bearer {LICHESS_TOKEN.strip()}",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
-    # We richten ons nu direct op de specifieke verzoeken-pagina van het team
-    requests_page_url = f"https://lichess.org/team/{TEAM_ID}/requests"
+    # We laden nu de absolute hoofdpagina van het team (dit kan GEEN 404/403 worden!)
+    main_team_url = f"https://lichess.org/team/{TEAM_ID}"
     
     try:
-        print(f"🔄 Verzoeken-pagina direct scannen...")
-        response = requests.get(requests_page_url, headers=headers)
+        print(f"🔄 Openbare teampagina scannen...")
+        response = requests.get(main_team_url, headers=headers)
         
         if response.status_code == 200:
-            # Haal de gebruikersnamen uit de pagina
+            # Haal de gebruikersnamen uit de pagina-broncode
             wachtrij_spelers = get_usernames_from_html(response.text)
-            wachtrij_spelers = list(set(wachtrij_spelers))
             
             if not wachtrij_spelers:
-                print("ℹ️ Geen openstaande verzoeken gevonden in de HTML. De wachtrij is op dit moment leeg of al verwerkt!")
+                print("ℹ️ Geen actieve verzoeken herkend op de hoofdpagina. De wachtrij is leeg!")
                 return
                 
-            print(f"👀 {len(wachtrij_spelers)} verzoek(en) ontdekt: {', '.join(wachtrij_spelers)}")
+            print(f"👀 {len(wachtrij_spelers)} potentieel verzoek/verzoeken ontdekt: {', '.join(wachtrij_spelers)}")
             
             for username in wachtrij_spelers:
                 print(f"⚙️ Automatisch verwerken van speler: {username}...")
@@ -49,12 +59,12 @@ def check_and_accept_requests():
                 sheet_succes = update_spreadsheet_speler(username)
                 
                 if sheet_succes:
-                    # 2. Accepteer op Lichess
+                    # 2. Accepteer op Lichess via de API-actie die we eerder succesvol hebben getest!
                     accept_url = f"https://lichess.org/api/team/{TEAM_ID}/request/{username.lower()}/accept"
                     accept_response = requests.post(accept_url, headers=headers)
                     
                     if accept_response.status_code == 200:
-                        print(f"✅ {username} succesvol toegevoegd via pagina-scan!")
+                        print(f"✅ {username} succesvol toegevoegd via automatische paginascan!")
                     else:
                         print(f"❌ Kon {username} niet accepteren. Code: {accept_response.status_code}")
         else:
@@ -64,5 +74,5 @@ def check_and_accept_requests():
         print(f"❌ Er ging iets mis tijdens het scannen: {e}")
 
 if __name__ == "__main__":
-    print("--- Lichess Systeem Bot (Directe Scanner Modus) ---")
+    print("--- Lichess Systeem Bot (Hoofdpagina Scanner) ---")
     check_and_accept_requests()
