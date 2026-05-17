@@ -1,64 +1,72 @@
 import os
 import requests
-import json
+import re
 from sheets_manager import update_spreadsheet_speler
 
 TEAM_ID = "growing-chess-variants-masters"
 LICHESS_TOKEN = os.getenv("LICHESS_TOKEN")
+
+def get_usernames_from_team_page(html_text):
+    """
+    Scant de HTML van de Lichess teampagina om gebruikersnamen 
+    te vinden van spelers die een openstaande aanvraag hebben.
+    """
+    # Lichess gebruikt specifieke links voor gebruikers die willen joinen: /team/id/request/username/accept
+    pattern = rf"/team/{TEAM_ID}/request/([\w-]+)/accept"
+    return re.findall(pattern, html_text)
 
 def check_and_accept_requests():
     if not LICHESS_TOKEN:
         print("❌ Fout: LICHESS_TOKEN secret is niet ingesteld!")
         return
 
-    headers = {"Authorization": f"Bearer {LICHESS_TOKEN.strip()}"}
+    headers = {
+        "Authorization": f"Bearer {LICHESS_TOKEN.strip()}",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
     
-    # We gebruiken nu het 'pm' (public/manage) endpoint of proberen direct de acceptatie 
-    # op basis van de openbare join-wachtrij als die er is.
-    url = f"https://lichess.org/api/team/{TEAM_ID}/requests"
+    # We vragen de normale, visuele teampagina op waar de aanvragen op staan
+    team_page_url = f"https://lichess.org/team/{TEAM_ID}"
     
     try:
-        response = requests.get(url, headers=headers)
+        print(f"🔄 Teampagina scannen op openstaande aanvragen...")
+        response = requests.get(team_page_url, headers=headers)
         
-        # Als Lichess weer 403 geeft op de wachtrij, gebruiken we de 'Brute Force' methode voor je test-account!
-        if response.status_code == 403:
-            print("ℹ️ Lichess blokkeert de wachtrij-lijst voor persoonlijke tokens (Status 403).")
-            print("🚀 Schakelen over naar directe acceptatie-modus...")
-            
-            # Vul hier de gebruikersnaam van je test-account in (bijvoorbeeld: "test_account")
-            # De bot probeert hem dan direct te accepteren!
-            test_username = "Distant_Abyss" 
-            
-            if test_username != "VUL_HIER_DE_NAAM_VAN_JE_TEST_ACCOUNT_IN":
-                accept_url = f"https://lichess.org/api/team/{TEAM_ID}/request/{test_username.lower()}/accept"
-                accept_response = requests.post(accept_url, headers=headers)
-                
-                if accept_response.status_code == 200:
-                    print(f"✅ Het is gelukt! {test_username} is succesvol geaccepteerd via het token!")
-                    update_spreadsheet_speler(test_username)
-                else:
-                    print(f"❌ Lichess weigert ook de directe acceptatie. Code: {accept_response.status_code}")
-                    print("⚠️ Dit betekent dat Lichess PERSOONLIJKE tokens van spelersaccounts definitief heeft buitengesloten voor team-beheer.")
-            else:
-                print("💡 Vul in bot.py even de naam van je test-account in op regel 25 om te kijken of direct accepteren wel mag!")
-            return
-
         if response.status_code == 200:
-            lines = response.text.strip().split("\n")
-            aanvragen = [json.loads(line) for line in lines if line]
+            # Zoek alle gebruikersnamen in de pagina die in de wachtrij staan
+            wachtrij_spelers = get_usernames_from_team_page(response.text)
             
-            for aanvraag in aanvragen:
-                username = aanvraag.get("user", {}).get("id")
-                if username:
-                    sheet_succes = update_spreadsheet_speler(username)
-                    if sheet_succes:
-                        accept_url = f"https://lichess.org/api/team/{TEAM_ID}/request/{username}/accept"
-                        requests.post(accept_url, headers=headers)
-                        print(f"✅ {username} succesvol toegelaten!")
-                        
+            # Filter dubbele namen eruit mochten die erin staan
+            wachtrij_spelers = list(set(wachtrij_spelers))
+            
+            if not wachtrij_spelers:
+                print("ℹ️ Geen openstaande aanvragen gevonden op de pagina. De wachtrij is leeg!")
+                return
+                
+            print(f"👀 {len(wachtrij_spelers)} aanvraag/aanvragen ontdekt: {', '.join(wachtrij_spelers)}")
+            
+            # Loop door alle gevonden spelers heen en accepteer ze automatisch!
+            for username in wachtrij_spelers:
+                print(f"⚙️ Automatisch verwerken van speler: {username}...")
+                
+                # 1. Update de Google Sheet (Geef 25 Shards)
+                sheet_succes = update_spreadsheet_speler(username)
+                
+                if sheet_succes:
+                    # 2. Accepteer de speler op Lichess via de actie die wél werkt
+                    accept_url = f"https://lichess.org/api/team/{TEAM_ID}/request/{username.lower()}/accept"
+                    accept_response = requests.post(accept_url, headers=headers)
+                    
+                    if accept_response.status_code == 200:
+                        print(f"✅ {username} is succesvol geaccepteerd en toegevoegd!")
+                    else:
+                        print(f"❌ Kon {username} niet accepteren op Lichess. Code: {accept_response.status_code}")
+        else:
+            print(f"❌ Kon de teampagina niet laden. Statuscode: {response.status_code}")
+            
     except Exception as e:
-        print(f"❌ Er ging iets mis: {e}")
+        print(f"❌ Er ging iets mis tijdens het scannen: {e}")
 
 if __name__ == "__main__":
-    print("--- Lichess Systeem Bot ---")
+    print("--- Lichess Systeem Bot (Pagina Scanner Modus) ---")
     check_and_accept_requests()
