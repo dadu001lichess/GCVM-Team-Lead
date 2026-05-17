@@ -1,7 +1,9 @@
 name: Lichess Auto Accept Bot
 
 on:
-  workflow_dispatch: # Hiermee kun je de bot handmatig starten via de knop
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *' 
 
 jobs:
   run-bot:
