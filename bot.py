@@ -8,14 +8,14 @@ LICHESS_TOKEN = os.getenv("LICHESS_TOKEN")
 
 def get_usernames_from_html(html_text):
     """
-    Scant de HTML op basis van de exacte Lichess structuur uit de screenshot:
-    /team/team-id/request/username@team-id
+    Scant de HTML van de centrale Lichess verzoekenpagina.
+    Zoekt naar het specifieke patroon: /team/team_id/request/username@team_id
     """
-    # Dit patroon zoekt specifiek naar de tekst tussen /request/ en het @-teken
+    # Dit patroon zoekt exact naar wat we in de devtools zagen, specifiek voor jouw team
     pattern = rf"/team/{TEAM_ID}/request/([\w-]+)@{TEAM_ID}"
     found = re.findall(pattern, html_text)
     
-    # Mocht Lichess toch ergens de oude url gebruiken, checken we die ook direct mee
+    # Val terug op een bredere check mocht de structuur iets afwijken
     pattern_fallback = rf"/team/{TEAM_ID}/request/([\w-]+)"
     found_fallback = re.findall(pattern_fallback, html_text)
     
@@ -23,7 +23,6 @@ def get_usernames_from_html(html_text):
     cleaned = []
     
     for name in alle_vondsten:
-        # Haal eventuele resterende tags of actiewoorden weg
         name_clean = name.replace("/accept", "").replace("/reject", "").strip()
         if name_clean and name_clean.lower() not in ["accept", "reject", "dismiss", "id"]:
             cleaned.append(name_clean)
@@ -40,17 +39,18 @@ def check_and_accept_requests():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
     
-    main_team_url = f"https://lichess.org/team/{TEAM_ID}"
+    # We sturen de bot nu RECHTSTREEKS naar de pagina uit je screenshot!
+    requests_url = "https://lichess.org/team/requests"
     
     try:
-        print(f"🔄 Openbare teampagina scannen...")
-        response = requests.get(main_team_url, headers=headers)
+        print(f"🔄 Centrale verzoekenpagina ({requests_url}) scannen...")
+        response = requests.get(requests_url, headers=headers)
         
         if response.status_code == 200:
             wachtrij_spelers = get_usernames_from_html(response.text)
             
             if not wachtrij_spelers:
-                print("ℹ️ Geen actieve verzoeken herkend op de hoofdpagina. De wachtrij is leeg!")
+                print("ℹ️ Geen actieve verzoeken voor jouw team gevonden op deze pagina. De wachtrij is leeg!")
                 return
                 
             print(f"👀 {len(wachtrij_spelers)} verzoek(en) ontdekt: {', '.join(wachtrij_spelers)}")
@@ -71,11 +71,11 @@ def check_and_accept_requests():
                     else:
                         print(f"❌ Kon {username} niet accepteren. Code: {accept_response.status_code}")
         else:
-            print(f"❌ Kon de pagina niet laden. Statuscode: {response.status_code}")
+            print(f"❌ Kon de verzoekenpagina niet laden. Statuscode: {response.status_code}")
             
     except Exception as e:
         print(f"❌ Er ging iets mis tijdens het scannen: {e}")
 
 if __name__ == "__main__":
-    print("--- Lichess Systeem Bot (Screenshot-Gekalibreerde Scanner) ---")
+    print("--- Lichess Systeem Bot (Centrale Dashboard Scanner) ---")
     check_and_accept_requests()
